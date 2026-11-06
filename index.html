@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <title>PI Planning - Trust Vote</title>
+  <title>PI Planning — Trust Vote</title>
 
   <style>
     :root {
@@ -745,27 +745,30 @@
 
         <div class="score-box">
           <div class="score-value-row">
-            <div id="scoreValue" class="score-value">80%</div>
+            <div id="scoreValue" class="score-value">4 / 5</div>
             <div class="score-label">
-              Confiance<br />
+              Note de confiance<br />
               pour cette cadence
+
             </div>
           </div>
 
           <input
-            id="confidenceRange"
-            type="range"
-            min="0"
-            max="100"
-            step="5"
-            value="80"
-          />
+           id="confidenceRange"
+           type="range"
+           min="0"
+           max="5"
+           step="0.5"
+           value="4"
+         />
+
 
           <div class="range-labels">
-            <span>0% · Aucunement</span>
-            <span>50% · Mitigé</span>
-            <span>100% · Très confiant</span>
+            <span>0 · Aucunement</span>
+            <span>2,5 · Mitigé</span>
+            <span>5 · Très confiant</span>
           </div>
+
         </div>
 
         <label for="commentInput">Commentaire <span style="color:var(--gray);font-weight:700;">(optionnel)</span></label>
@@ -873,7 +876,7 @@
                 <div class="legend-item">
                   <div class="legend-name">
                     <span class="legend-dot" style="background:var(--green)"></span>
-                    Confiant ≥ 80%
+                    Confiant ≥ 4 / 5
                   </div>
                   <span id="highCount">0</span>
                 </div>
@@ -881,7 +884,7 @@
                 <div class="legend-item">
                   <div class="legend-name">
                     <span class="legend-dot" style="background:var(--orange)"></span>
-                    À consolider 50–79%
+                    À consolider 2,5–3,5 / 5
                   </div>
                   <span id="mediumCount">0</span>
                 </div>
@@ -889,7 +892,7 @@
                 <div class="legend-item">
                   <div class="legend-name">
                     <span class="legend-dot" style="background:var(--red)"></span>
-                    Risque &lt; 50%
+                    Risque < 2,5 / 5
                   </div>
                   <span id="lowCount">0</span>
                 </div>
@@ -1017,9 +1020,17 @@
       return role;
     }
 
-    function formatPercent(value) {
-      return value === null || value === undefined ? "—" : `${value}%`;
+    function formatScore(value) {
+      if (value === null || value === undefined) return "—";
+    
+      const numericValue = Number(value);
+    
+      return `${numericValue
+        .toFixed(1)
+        .replace(".0", "")
+        .replace(".", ",")} / 5`;
     }
+
 
     function formatDate(dateString) {
       if (!dateString) return "—";
@@ -1040,8 +1051,14 @@
     }
 
     function updateScoreLabel() {
-      elements.scoreValue.textContent = `${elements.confidenceRange.value}%`;
+      const score = Number(elements.confidenceRange.value);
+    
+      elements.scoreValue.textContent = `${score
+        .toFixed(1)
+        .replace(".0", "")
+        .replace(".", ",")} / 5`;
     }
+
 
     function selectedMember() {
       return state.members.find(
@@ -1146,19 +1163,19 @@
       const po = average(poVotes);
       const test = average(testVotes);
 
-      elements.overallAverage.textContent = formatPercent(overall);
+      elements.overallAverage.textContent = formatScore(overall);
       elements.overallDetail.textContent =
         `${state.votes.length} / ${state.members.length} votes`;
 
-      elements.devAverage.textContent = formatPercent(dev);
+      elements.devAverage.textContent = formatScore(dev);
       elements.devDetail.textContent =
         `${devVotes.length} / ${state.members.filter((m) => m.role === "DEV").length} votes`;
 
-      elements.poAverage.textContent = formatPercent(po);
+      elements.poAverage.textContent = formatScore(po);
       elements.poDetail.textContent =
         `${poVotes.length} / ${state.members.filter((m) => m.role === "PO").length} votes`;
 
-      elements.testAverage.textContent = formatPercent(test);
+      elements.testAverage.textContent = formatScore(test);
       elements.testDetail.textContent =
         `${testVotes.length} / ${state.members.filter((m) => m.role === "TEST").length} votes`;
 
@@ -1172,45 +1189,64 @@
         { average: po, bar: elements.poBar, label: elements.poBarValue },
         { average: test, bar: elements.testBar, label: elements.testBarValue }
       ];
-
+    
       for (const item of values) {
-        item.bar.style.width = `${item.average || 0}%`;
-        item.label.textContent = formatPercent(item.average);
+        // Une note sur 5 est transformée en largeur de barre sur 100%.
+        const width = item.average === null || item.average === undefined
+          ? 0
+          : (Number(item.average) / 5) * 100;
+    
+        item.bar.style.width = `${width}%`;
+        item.label.textContent = formatScore(item.average);
       }
-
+    
+      const target = state.cadence?.target_score || 4;
+    
       elements.targetBadge.textContent =
-        `Objectif : ${state.cadence?.target_score || 80}%`;
+        `Objectif : ${formatScore(target)}`;
     }
+
 
     function renderDistribution() {
-      const totalVotes = state.votes.length;
-      const totalMembers = state.members.length;
+       const totalVotes = state.votes.length;
+       const totalMembers = state.members.length;
+     
+       // Vert : note >= 4/5
+       // Orange : note entre 2,5/5 inclus et 4/5 exclu
+       // Rouge : note < 2,5/5
+       const high = state.votes.filter(
+         (vote) => Number(vote.confidence_score) >= 4
+       ).length;
+     
+       const medium = state.votes.filter(
+         (vote) =>
+           Number(vote.confidence_score) >= 2.5 &&
+           Number(vote.confidence_score) < 4
+       ).length;
+     
+       const low = state.votes.filter(
+         (vote) => Number(vote.confidence_score) < 2.5
+       ).length;
+     
+       const highPercent = totalVotes ? (high / totalVotes) * 100 : 0;
+       const mediumPercent = totalVotes ? (medium / totalVotes) * 100 : 0;
+     
+       elements.donut.style.background = `
+         conic-gradient(
+           var(--green) 0% ${highPercent}%,
+           var(--orange) ${highPercent}% ${highPercent + mediumPercent}%,
+           var(--red) ${highPercent + mediumPercent}% 100%
+         )
+       `;
+     
+       elements.participationValue.textContent =
+         `${totalMembers ? Math.round((totalVotes / totalMembers) * 100) : 0}%`;
+     
+       elements.highCount.textContent = high;
+       elements.mediumCount.textContent = medium;
+       elements.lowCount.textContent = low;
+     }
 
-      const high = state.votes.filter((vote) => vote.confidence_score >= 80).length;
-      const medium = state.votes.filter(
-        (vote) => vote.confidence_score >= 50 && vote.confidence_score < 80
-      ).length;
-      const low = state.votes.filter((vote) => vote.confidence_score < 50).length;
-
-      const highPercent = totalVotes ? (high / totalVotes) * 100 : 0;
-      const mediumPercent = totalVotes ? (medium / totalVotes) * 100 : 0;
-      const lowPercent = totalVotes ? (low / totalVotes) * 100 : 0;
-
-      elements.donut.style.background = `
-        conic-gradient(
-          var(--green) 0% ${highPercent}%,
-          var(--orange) ${highPercent}% ${highPercent + mediumPercent}%,
-          var(--red) ${highPercent + mediumPercent}% 100%
-        )
-      `;
-
-      elements.participationValue.textContent =
-        `${totalMembers ? Math.round((totalVotes / totalMembers) * 100) : 0}%`;
-
-      elements.highCount.textContent = high;
-      elements.mediumCount.textContent = medium;
-      elements.lowCount.textContent = low;
-    }
 
     function renderRanking() {
       const voteByMemberId = new Map(
@@ -1253,7 +1289,7 @@
 
               ${
                 vote
-                  ? `<div class="ranking-score">${vote.confidence_score}%</div>`
+                  ? `<div class="ranking-score">${formatScore(vote.confidence_score)}</div>`
                   : `<div class="pending">En attente</div>`
               }
             </article>
@@ -1332,7 +1368,10 @@
         localStorage.setItem("piTrustVoteMemberId", member.id);
         state.selectedMemberId = member.id;
 
-        showToast(`Vote de ${member.display_name} enregistré : ${score}%.`);
+        showToast(
+          `Vote de ${member.display_name} enregistré : ${formatScore(score)}.`
+        );
+
 
         await loadData();
       } catch (error) {
@@ -1352,7 +1391,7 @@
       const vote = memberVote(member.id);
 
       if (!vote) {
-        elements.confidenceRange.value = 80;
+        elements.confidenceRange.value = 4;
         elements.commentInput.value = "";
         updateScoreLabel();
         showToast("Aucun vote existant pour cette personne.");
@@ -1363,7 +1402,8 @@
       elements.commentInput.value = vote.comment || "";
       updateScoreLabel();
 
-      showToast(`Vote chargé : ${vote.confidence_score}%.`);
+      showToast(`Vote chargé : ${formatScore(vote.confidence_score)}.`);
+
     }
 
     async function deleteMyVote() {
@@ -1423,7 +1463,7 @@
           "Cadence",
           "Nom",
           "Rôle",
-          "Vote de confiance (%)",
+          "Note de confiance (/5)",
           "Commentaire",
           "Dernière mise à jour"
         ]
@@ -1436,7 +1476,9 @@
           state.cadence?.title || "",
           member.display_name,
           roleLabel(member.role),
-          vote?.confidence_score ?? "",
+          vote?.confidence_score
+           ? Number(vote.confidence_score).toFixed(1).replace(".", ",")
+           : "",
           vote?.comment ?? "",
           vote?.updated_at ? formatDate(vote.updated_at) : ""
         ]);
